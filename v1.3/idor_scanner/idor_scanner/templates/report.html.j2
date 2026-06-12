@@ -1,0 +1,157 @@
+{% macro chip(s) -%}<span class="chip sev-{{ s }}">{{ s }}</span>{%- endmacro %}
+{% macro verdict(r) -%}<span class="v v-{{ r }}">{{ r }}</span>{%- endmacro %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDOR Report — {{ target }}</title>
+<style>
+  :root{
+    --ink:#16181d; --muted:#5b6470; --line:#e4e7ec; --paper:#fbfbf9; --panel:#fff;
+    --accent:#1f6f6b;
+    --critical:#8b1a1a; --high:#c0431f; --medium:#b8860b; --low:#3d7a55; --info:#5b6470;
+    --grant:#8b1a1a; --deny:#3d7a55;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.55}
+  .wrap{max-width:920px;margin:0 auto;padding:44px 32px 72px}
+  .banner{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--panel);
+    padding:13px 18px;font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 22px;
+    border-radius:2px;margin-bottom:32px}
+  .banner b{color:var(--ink);font-weight:600}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 8px}
+  h1{font-size:26px;line-height:1.12;letter-spacing:-.02em;margin:0 0 4px;font-weight:680;word-break:break-all}
+  .sub{color:var(--muted);margin:0 0 30px;font-size:14px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
+    border-bottom:1px solid var(--line);padding-bottom:8px;margin:42px 0 16px;font-weight:600}
+  .cards{display:flex;gap:10px;flex-wrap:wrap}
+  .card{flex:1;min-width:120px;border:1px solid var(--line);border-radius:3px;padding:14px 16px;background:var(--panel)}
+  .card .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+  .card .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .rating.critical,.n.critical{color:var(--critical)} .rating.high,.n.high{color:var(--high)}
+  .rating.medium,.n.medium{color:var(--medium)} .rating.low,.n.low{color:var(--low)} .rating.info{color:var(--info)}
+  .risk{display:flex;align-items:baseline;gap:12px;border:1px solid var(--line);background:var(--panel);
+    border-radius:3px;padding:18px 22px;margin-bottom:12px}
+  .risk .label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .risk .rating{font-size:24px;font-weight:700;text-transform:capitalize}
+  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    padding:2px 8px;border-radius:100px;border:1px solid currentColor;font-weight:600}
+  .sev-critical{color:var(--critical)} .sev-high{color:var(--high)} .sev-medium{color:var(--medium)}
+  .sev-low{color:var(--low)} .sev-info{color:var(--info)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:3px}
+  th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  thead th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  td.mono,th.mono{font-family:var(--mono);font-size:12px}
+  .v{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
+    border-radius:3px;font-weight:600;white-space:nowrap}
+  .v-pass{background:#eaf3ed;color:var(--deny)} .v-potential-idor{background:#f6e7e4;color:var(--grant)}
+  .v-blocked{background:#fff3df;color:var(--medium)} .v-inconclusive,.v-review-denied{background:#eef0f3;color:var(--muted)}
+  .v-review-granted{background:#fdf1d6;color:var(--medium)}
+  .finding{border:1px solid var(--line);border-radius:4px;background:var(--panel);margin:16px 0;overflow:hidden}
+  .finding.sev-critical{border-left:3px solid var(--critical)} .finding.sev-high{border-left:3px solid var(--high)}
+  .finding.sev-medium{border-left:3px solid var(--medium)} .finding.sev-low{border-left:3px solid var(--low)}
+  .fhead{padding:14px 18px;display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}
+  .fhead h3{margin:0;font-size:15px;letter-spacing:-.01em}
+  .fid{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+  .fmeta{display:flex;gap:8px;flex-shrink:0;align-items:flex-start}
+  .fbody{padding:4px 18px 16px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:3px 14px;font-size:13px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .kv dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .kv dd{margin:0} .kv dd.mono{font-family:var(--mono);font-size:12px;word-break:break-all}
+  .block{padding:12px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .block:last-child{border-bottom:0}
+  .block .lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+  .ev{font-family:var(--mono);font-size:11.5px;background:#f4f5f3;border:1px solid var(--line);border-radius:3px;
+    padding:11px 13px;white-space:pre-wrap;word-break:break-word;color:#2a2d33}
+  .empty{padding:20px;border:1px dashed var(--line);border-radius:3px;color:var(--muted);font-size:14px}
+  .foot{margin-top:48px;padding-top:14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner">
+    <span><b>Target</b> {{ target }}</span>
+    <span><b>Status</b> {{ status }}</span>
+    <span><b>Started</b> {{ start_time or "—" }}</span>
+    <span><b>Finished</b> {{ end_time or "—" }}</span>
+    <span><b>Generated</b> {{ generated }}</span>
+  </div>
+
+  <p class="eyebrow">Authorized IDOR Assessment</p>
+  <h1>{{ target }}</h1>
+  <p class="sub">Broken object-level authorization scan — OWASP A01:2021 · CWE-639</p>
+
+  <div class="risk">
+    <span class="label">Risk rating</span>
+    <span class="rating {{ risk }}">{{ risk }}</span>
+  </div>
+
+  <h2>Scan results</h2>
+  <div class="cards">
+    <div class="card"><div class="n">{{ stats.endpoints }}</div><div class="k">Endpoints</div></div>
+    <div class="card"><div class="n">{{ stats.parameters }}</div><div class="k">Parameters</div></div>
+    <div class="card"><div class="n">{{ stats.objects }}</div><div class="k">Objects</div></div>
+    <div class="card"><div class="n {{ risk }}">{{ stats.findings }}</div><div class="k">IDOR Findings</div></div>
+    {% for sev in ["critical","high","medium","low"] %}
+    <div class="card"><div class="n {{ sev }}">{{ sev_counts.get(sev,0) }}</div><div class="k">{{ sev }}</div></div>
+    {% endfor %}
+  </div>
+
+  <h2>Authorization matrix</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Principal</th><th>Role</th><th>Object</th><th class="mono">Object ID</th>
+        <th>Expected</th><th>Actual</th><th>Result</th></tr></thead>
+      <tbody>
+        {% for c in matrix %}
+        <tr><td class="mono">{{ c.principal }}</td><td>{{ c.role }}</td><td>{{ c.object_label }}</td>
+          <td class="mono">{{ c.object_id }}</td><td class="mono">{{ c.expected.value }}</td>
+          <td class="mono">{{ c.actual.value }}</td><td>{{ verdict(c.result) }}</td></tr>
+        {% else %}
+        <tr><td colspan="7" class="mono">No matrix cells recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Findings</h2>
+  {% if not findings %}<div class="empty">No confirmed findings within tested scope.</div>{% endif %}
+  {% for f in findings %}
+  <div class="finding sev-{{ f.severity.value }}">
+    <div class="fhead">
+      <div><h3>{{ f.test_case }}</h3><div class="fid">{{ f.finding_id }} · role tested: {{ f.role_tested }}</div></div>
+      <div class="fmeta">{{ chip(f.severity.value) }}<span class="chip sev-info">conf: {{ f.confidence.value }}</span></div>
+    </div>
+    <div class="fbody">
+      <dl class="kv">
+        <dt>Endpoint</dt><dd class="mono">{{ f.endpoint }}</dd>
+        <dt>Parameter</dt><dd class="mono">{{ f.parameter }}</dd>
+        <dt>Object ID</dt><dd class="mono">{{ f.object_id }}</dd>
+        <dt>Mapping</dt><dd class="mono">{{ f.owasp }} · {{ f.cwe }}</dd>
+      </dl>
+      <div class="block"><div class="lab">Description</div>{{ f.description }}</div>
+      <div class="block"><div class="lab">Evidence</div>
+        {% for e in f.evidence %}
+        <div class="ev">principal : {{ e.principal }} ({{ e.role }})
+GET {{ e.request_url }}
+status    : {{ e.status_code }}    length: {{ e.response_length }}    sim-to-owner: {{ "%.0f%%"|format(e.similarity_to_owner*100) }}
+snippet   : {{ e.body_snippet }}</div>
+        {% endfor %}
+      </div>
+      <div class="block"><div class="lab">Recommendation</div>{{ f.recommendation }}</div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="foot">
+    Read-only assessment. Evidence stores response metadata and a redacted, length-capped
+    snippet by design. All requests were limited to the authorized target host.
+  </div>
+</div>
+</body>
+</html>

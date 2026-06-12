@@ -1,0 +1,99 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Autonomous IDOR Scanner</title>
+<style>
+  :root{--bg:#f6f7f9;--panel:#fff;--ink:#1a1c21;--muted:#5b6470;--line:#e6e8ec;--brand:#1f6f6b;--side:#11201f;
+    --critical:#8b1a1a;--high:#c0431f;--medium:#b8860b;--low:#3d7a55;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);display:flex}
+  .side{width:300px;min-height:100vh;background:var(--side);color:#e8eeed;padding:22px 20px;flex-shrink:0}
+  .side h1{font-size:16px;margin:0 0 2px;display:flex;gap:8px;align-items:center}.side .tag{font-size:11px;color:#8fa6a3;margin-bottom:20px}
+  .side h2{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7f9794;margin:18px 0 8px}
+  .chk{width:16px;height:16px;border-radius:4px;background:var(--brand);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:11px}
+  .chkrow{display:flex;align-items:center;gap:9px;background:#16302e;border:1px solid #244a47;border-radius:6px;padding:9px 11px;font-size:12.5px}
+  .mode{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+  .mopt{display:flex;gap:9px;align-items:flex-start;background:#16302e;border:1px solid #244a47;border-radius:6px;padding:8px 11px;font-size:12.5px}
+  .mopt.on{border-color:var(--brand);background:#1a3a37}
+  .radio{width:14px;height:14px;border-radius:50%;border:2px solid #4d756f;margin-top:2px;flex-shrink:0}
+  .mopt.on .radio{border-color:var(--brand);background:var(--brand);box-shadow:inset 0 0 0 2px #16302e}
+  .mopt .cap{color:#8fa6a3;font-size:10.5px}
+  .sess{background:#16302e;border:1px solid #244a47;border-radius:6px;padding:8px 11px;font-size:12px;color:#cfe0de;margin-top:7px;display:flex;align-items:center;gap:8px}
+  .main{flex:1;padding:28px 36px;max-width:1200px}
+  .h-title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0 0 3px}
+  .h-sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .sect{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:24px 0 11px}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}.tab{font-size:13px;padding:6px 14px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--muted)}.tab.on{border-color:var(--brand);color:var(--brand);font-weight:600}
+  .targetbar{display:flex;gap:10px;align-items:center}
+  .urlbox{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px;font-family:var(--mono);font-size:13px}
+  .btn{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:13.5px;font-weight:600}
+  .progress{height:7px;background:#e3e6ea;border-radius:4px;margin:14px 0 4px;overflow:hidden}.progress>i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--brand),#2c9a93)}
+  .logline{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:11px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 15px}
+  .card .n{font-size:23px;font-weight:700;font-variant-numeric:tabular-nums}.card .k{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .n.crit{color:var(--critical)}
+  .pill{display:inline-block;padding:3px 12px;border-radius:20px;color:#fff;font-size:12px;font-weight:700;text-transform:uppercase}.p-critical{background:var(--critical)}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:12.5px}
+  th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left}thead th{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:#fafbfc}
+  td.mono,.mono{font-family:var(--mono);font-size:12px}
+  .bar{display:inline-block;height:7px;border-radius:4px;background:var(--brand);vertical-align:middle;margin-right:7px}
+  .sev{padding:2px 8px;border-radius:20px;color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase}.s-critical{background:var(--critical)}.s-high{background:var(--high)}.s-medium{background:var(--medium)}
+  .v{padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:600;text-transform:uppercase;font-family:var(--mono)}.v-idor{background:#f6e7e4;color:var(--critical)}.v-pass{background:#eaf3ed;color:var(--low)}
+  .exp{display:flex;gap:12px;margin-top:4px}.exp button{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px;font-size:13px;font-weight:600;color:var(--ink)}
+</style></head><body>
+<aside class="side">
+  <h1>🛡️ Autonomous IDOR Scanner</h1><div class="tag">Local · read-only · authorized only</div>
+  <h2>1 · Authorization</h2><div class="chkrow"><span class="chk">✓</span> I am authorized to test these targets</div>
+  <h2>2 · Scan mode</h2>
+  <div class="mode">
+    <div class="mopt"><span class="radio"></span><div>Quick<div class="cap">Fast recon, high-confidence checks</div></div></div>
+    <div class="mopt on"><span class="radio"></span><div>Standard<div class="cap">Full crawl + object discovery</div></div></div>
+    <div class="mopt"><span class="radio"></span><div>Deep<div class="cap">Max depth + AI reasoning</div></div></div>
+  </div>
+  <h2>3 · Sessions</h2>
+  <div class="sess"><span class="chk">✓</span> user_a · user</div>
+  <div class="sess"><span class="chk">✓</span> user_b · user</div>
+</aside>
+<main class="main">
+  <div class="h-title">Autonomous IDOR Assessment Agent</div>
+  <div class="h-sub">Enter a target, click Scan. The agent crawls, discovers APIs/parameters/objects, and tests authorization automatically · OWASP A01:2021 · CWE-639</div>
+  <div class="sect">Target</div>
+  <div class="tabs"><div class="tab on">Single target</div><div class="tab">Multiple targets</div></div>
+  <div class="targetbar"><div class="urlbox">https://app.acme-staging.example.com</div><button class="btn">▶ Scan (Standard)</button></div>
+  <div class="progress"><i></i></div>
+  <div class="logline">[100%] Scan complete: 12 finding(s) · contexts: anonymous, user_a, user_b</div>
+
+  <div class="sect">Scan results</div>
+  <div class="cards">
+    <div class="card"><div class="n">42</div><div class="k">Pages</div></div>
+    <div class="card"><div class="n">9</div><div class="k">APIs</div></div>
+    <div class="card"><div class="n">14</div><div class="k">Parameters</div></div>
+    <div class="card"><div class="n">23</div><div class="k">Objects</div></div>
+    <div class="card"><div class="n">128</div><div class="k">Requests seen</div></div>
+    <div class="card"><div class="k" style="margin-bottom:6px">Risk rating</div><span class="pill p-critical">Critical</span></div>
+  </div>
+
+  <div class="sect">Ranked IDOR candidates (auto-prioritized)</div>
+  <table><thead><tr><th>Probability</th><th>Endpoint</th><th>Parameter</th><th>Object ID</th><th>ID Type</th><th>Auth-sensitive</th></tr></thead><tbody>
+    <tr><td><span class="bar" style="width:70px"></span>0.92</td><td class="mono">/api/v1/accounts/{id}</td><td class="mono">accountId</td><td class="mono">5001</td><td>numeric</td><td>yes</td></tr>
+    <tr><td><span class="bar" style="width:64px"></span>0.85</td><td class="mono">/invoice?id=1002</td><td class="mono">invoiceId</td><td class="mono">1002</td><td>sequential</td><td>yes</td></tr>
+    <tr><td><span class="bar" style="width:53px"></span>0.71</td><td class="mono">/api/v1/users/1001</td><td class="mono">userId</td><td class="mono">1001</td><td>numeric</td><td>yes</td></tr>
+    <tr><td><span class="bar" style="width:30px"></span>0.40</td><td class="mono">/doc?ref=a8f4c2…</td><td class="mono">ref</td><td class="mono">a8f4c2…</td><td>hash</td><td>yes</td></tr>
+  </tbody></table>
+
+  <div class="sect">Findings</div>
+  <table><thead><tr><th>ID</th><th>Severity</th><th>Confidence</th><th>Endpoint</th><th>Object ID</th><th>Role tested</th><th>Test case</th></tr></thead><tbody>
+    <tr><td class="mono">IDOR-9f8e7d6c</td><td><span class="sev s-critical">critical</span></td><td class="mono">high</td><td class="mono">/api/v1/users/1002</td><td class="mono">1002</td><td class="mono">anonymous</td><td>Forced browsing (unauthenticated)</td></tr>
+    <tr><td class="mono">IDOR-a1b2c3d4</td><td><span class="sev s-high">high</span></td><td class="mono">high</td><td class="mono">/invoice?id=1002</td><td class="mono">1002</td><td class="mono">user</td><td>Cross-user object access</td></tr>
+    <tr><td class="mono">IDOR-2b9d44f1</td><td><span class="sev s-critical">critical</span></td><td class="mono">medium</td><td class="mono">/invoice?id={id}</td><td class="mono">1001..1019</td><td class="mono">user</td><td>Mass object enumeration</td></tr>
+  </tbody></table>
+
+  <div class="sect">Authorization matrix</div>
+  <table><thead><tr><th>Principal</th><th>Role</th><th>Object</th><th>Object ID</th><th>Expected</th><th>Actual</th><th>Result</th></tr></thead><tbody>
+    <tr><td class="mono">user_a</td><td>user</td><td>Invoice 1001</td><td class="mono">1001</td><td class="mono">allow</td><td class="mono">granted</td><td><span class="v v-pass">pass</span></td></tr>
+    <tr><td class="mono">user_b</td><td>user</td><td>Invoice 1001</td><td class="mono">1001</td><td class="mono">deny</td><td class="mono">granted</td><td><span class="v v-idor">potential-idor</span></td></tr>
+    <tr><td class="mono">anonymous</td><td>anonymous</td><td>User 1002</td><td class="mono">1002</td><td class="mono">deny</td><td class="mono">granted</td><td><span class="v v-idor">potential-idor</span></td></tr>
+  </tbody></table>
+
+  <div class="sect">Export</div>
+  <div class="exp"><button>Generate HTML report</button><button>Generate JSON report</button><button>Generate PDF report</button></div>
+</main></body></html>
